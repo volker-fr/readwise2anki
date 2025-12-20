@@ -20,6 +20,35 @@ def process_highlight(highlight, book, anki_manager):
             logger.debug(f"Suspended deleted highlight {highlight_id}")
         return
 
+    if book.get("category", None) == "books":
+        if highlight.get("url", None) is not None:
+            logging.warning(f"Highlight has URL in book: {highlight}")
+
+        asin = book.get("asin", None)
+        if asin is None:
+            logging.warning(f"Book highlight missing ASIN: {book}")
+            return
+
+        if highlight.get("location_type", "") != "location":
+            logging.warning(
+                f"Book highlight location_type isn't 'location': {highlight}"
+            )
+
+        location = highlight.get("location", "")
+        if not isinstance(location, int):
+            logging.warning(f"Book highlight location isn't integer: {highlight}")
+
+        if highlight.get("url", None) is not None:
+            logging.warning(
+                f"Book highlight has 'url' set. It will be overwritten: {highlight}"
+            )
+
+        highlight["url"] = (
+            # f"http://read.amazon.com/?&asin={asin}&location={location}&ref=sr_rn_kfw"
+            # doesn't seem to work well with book and location on iOS
+            f"kindle://book?action=open&asin={asin}&location={location}"
+        )
+
     anki_manager.add_note(highlight, book)
 
 

@@ -48,6 +48,53 @@ class AnkiManager:
         # Create deck if it doesn't exist
         self._create_deck_if_needed()
 
+    def _configure_deck_preset(self):
+        """Configure deck with its own preset for learning intervals."""
+        preset_name = "Readwise Learning"
+
+        # Get current deck config
+        current_config = self._invoke("getDeckConfig", deck=self.deck_name)
+
+        if not current_config:
+            return
+
+        current_name = current_config.get("name", "")
+        current_config_id = current_config.get("id")
+
+        # If already using our preset, just update it if needed
+        if current_name == preset_name:
+            current_delays = current_config["new"].get("delays", [])
+            target_delays = [4320, 14400, 43200]
+
+            if current_delays != target_delays:
+                current_config["new"]["delays"] = target_delays
+                current_config["new"]["ints"] = [30, 30]
+                current_config["rev"]["ease4"] = 1.3
+                self._invoke("saveDeckConfig", config=current_config)
+                logger.info(f"Updated deck preset '{preset_name}' learning steps")
+            return
+
+        # Need to create new preset - clone the current one
+        new_config_id = self._invoke(
+            "cloneDeckConfigId", name=preset_name, cloneFrom=current_config_id
+        )
+
+        # Get the newly created config
+        self._invoke("setDeckConfigId", decks=[self.deck_name], configId=new_config_id)
+        new_config = self._invoke("getDeckConfig", deck=self.deck_name)
+
+        # Configure the learning steps
+        new_config["new"]["delays"] = [4320, 14400, 43200]  # in minutes: 3d, 10d, 30d
+        new_config["new"]["ints"] = [30, 30]  # graduating and easy interval in days
+        new_config["rev"]["ease4"] = 1.3  # Easy bonus 130%
+
+        # Save the updated config
+        self._invoke("saveDeckConfig", config=new_config)
+
+        logger.info(
+            f"Created deck preset '{preset_name}' with learning steps: 3 days, 10 days, 30 days"
+        )
+
         # Create model if it doesn't exist
         self._create_model_if_needed()
 
@@ -97,35 +144,11 @@ class AnkiManager:
         """Create the deck if it doesn't exist."""
         self._invoke("createDeck", deck=self.deck_name)
 
-        # Try to configure deck learning steps
+        # Try to configure deck with its own preset
         try:
-            self._configure_learning_steps()
+            self._configure_deck_preset()
         except AnkiConnectError as e:
-            logger.debug(f"Could not configure deck learning steps: {e}")
-
-    def _configure_learning_steps(self):
-        """Configure deck with simplified learning intervals."""
-        # Get deck configuration
-        config = self._invoke("getDeckConfig", deck=self.deck_name)
-
-        if config:
-            # Check if already configured
-            current_delays = config["new"].get("delays", [])
-            target_delays = [1440, 4320, 14400]  # in minutes: 1d, 3d, 10d
-
-            if current_delays != target_delays:
-                # Set learning steps to 1 day, 3 days, 10 days
-                config["new"]["delays"] = target_delays
-                config["new"]["ints"] = [10, 10]  # graduating and easy interval in days
-
-                # Set some review settings
-                config["rev"]["ease4"] = 1.3  # Easy bonus 130%
-
-                # Save updated config
-                self._invoke("saveDeckConfig", config=config)
-                logger.info(
-                    "Configured deck with learning steps: 1 day, 3 days, 10 days"
-                )
+            logger.debug(f"Could not configure deck preset: {e}")
 
     def _create_model_if_needed(self):
         """Create the custom model if it doesn't exist."""
@@ -157,13 +180,11 @@ class AnkiManager:
             "css": """
                 .card {
                     font-family: arial;
-                    font-size: 20px;
                     text-align: left;
                     color: black;
                     background-color: white;
                 }
                 .highlight {
-                    font-size: 24px;
                     margin-bottom: 20px;
                     line-height: 1.4;
                 }
@@ -173,7 +194,6 @@ class AnkiManager:
                     margin-bottom: 20px;
                 }
                 .metadata {
-                    font-size: 16px;
                     color: #555;
                 }
                 .metadata div {
@@ -199,14 +219,12 @@ class AnkiManager:
                 }
                 .url-link {
                     word-break: break-all;
-                    font-size: 14px;
                 }
             """,
             "cardTemplates": [
                 {
                     "Name": "Card 1",
                     "Front": """
-                        {{#Color}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color}}
                         <div class="highlight">{{Text}}</div>
                         <div class="source">— {{Title}}</div>
                     """,
@@ -220,7 +238,7 @@ class AnkiManager:
                             {{#Note}}<div class="note"><strong>Note:</strong> {{Note}}</div>{{/Note}}
                             {{#HighlightURL}}<div class="url-link"><a href="{{HighlightURL}}" target="_blank">View Source ↗</a></div>{{/HighlightURL}}
                             {{#ReadwiseURL}}<div><a href="{{ReadwiseURL}}" target="_blank">On Readwise.com ↗</a></div>{{/ReadwiseURL}}
-                            {{#IsFavorite}}<div class="favorite-icon">❤️</div>{{/IsFavorite}}
+                            <div>{{#IsFavorite}}<span class="favorite-icon">❤️</span>{{/IsFavorite}}{{#Color}}{{^Color:yellow}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color:yellow}}{{/Color}}</div>
                         </div>
                     """,
                 }
@@ -282,7 +300,6 @@ class AnkiManager:
                         "templates": {
                             "Card 1": {
                                 "Front": """
-                                {{#Color}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color}}
                                 <div class="highlight">{{Text}}</div>
                                 <div class="source">— {{Title}}</div>
                             """,
@@ -296,7 +313,7 @@ class AnkiManager:
                                     {{#Note}}<div class="note"><strong>Note:</strong> {{Note}}</div>{{/Note}}
                                     {{#HighlightURL}}<div class="url-link"><a href="{{HighlightURL}}" target="_blank">View Source ↗</a></div>{{/HighlightURL}}
                                     {{#ReadwiseURL}}<div><a href="{{ReadwiseURL}}" target="_blank">On Readwise.com ↗</a></div>{{/ReadwiseURL}}
-                                    {{#IsFavorite}}<div class="favorite-icon">❤️</div>{{/IsFavorite}}
+                                    <div>{{#IsFavorite}}<span class="favorite-icon">❤️</span>{{/IsFavorite}}{{#Color}}{{^Color:yellow}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color:yellow}}{{/Color}}</div>
                                 </div>
                             """,
                             }
