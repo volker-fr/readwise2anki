@@ -391,12 +391,6 @@ class AnkiManager:
                 existing_fields = existing["fields"]
                 note_id = existing["noteId"]
 
-                # Unsuspend the note if it was previously suspended
-                # (this handles the case where a deleted highlight is restored)
-                if existing.get("cards"):
-                    card_ids = existing["cards"]
-                    self._invoke("unsuspend", cards=card_ids)
-
                 # Check if any field needs updating
                 needs_update = False
                 update_fields = {}
