@@ -3,6 +3,7 @@
 import requests
 import logging
 from typing import Optional, Any
+from textwrap import dedent
 import markdown
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,83 @@ class AnkiConnectError(Exception):
 
 class AnkiManager:
     """Manages Anki deck creation and note addition via AnkiConnect."""
+
+    # Model schema - single source of truth
+    MODEL_FIELDS = [
+        "Text",
+        "Title",
+        "Author",
+        "Source",
+        "Category",
+        "Note",
+        "Tags",
+        "HighlightID",
+        "UpdatedAt",
+        "HighlightURL",
+        "ReadwiseURL",
+        "Color",
+        "IsFavorite",
+    ]
+
+    MODEL_CSS = """
+        .card {
+            font-family: arial;
+            text-align: left;
+            color: black;
+            background-color: white;
+        }
+        .highlight {
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .source {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        .metadata {
+            color: #555;
+        }
+        .metadata div {
+            margin: 5px 0;
+        }
+        .note {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-left: 3px solid #4CAF50;
+        }
+        .color-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .favorite-icon {
+            color: red;
+            margin-left: 8px;
+        }
+        .url-link {
+            word-break: break-all;
+        }
+    """
+
+    TEMPLATE_FRONT = """<div class="highlight">{{Text}}</div>
+<div class="source">— {{Title}}</div>"""
+
+    TEMPLATE_BACK = """{{FrontSide}}
+<hr id="answer">
+<div class="metadata">
+    <div><strong>Author:</strong> {{Author}}</div>
+    <div><strong>Source:</strong> {{Source}}</div>
+    <div><strong>Category:</strong> {{Category}}</div>
+    {{#Note}}<div class="note"><strong>Note:</strong> {{Note}}</div>{{/Note}}
+    {{#HighlightURL}}<div class="url-link"><a href="{{HighlightURL}}" target="_blank">View Source ↗</a></div>{{/HighlightURL}}
+    {{#ReadwiseURL}}<div><a href="{{ReadwiseURL}}" target="_blank">On Readwise.com ↗</a></div>{{/ReadwiseURL}}
+    <div>{{#IsFavorite}}<span class="favorite-icon">❤️</span>{{/IsFavorite}}{{#Color}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color}}</div>
+</div>"""
 
     def __init__(
         self,
@@ -95,9 +173,6 @@ class AnkiManager:
             f"Created deck preset '{preset_name}' with learning steps: 3 days, 10 days, 30 days"
         )
 
-        # Create model if it doesn't exist
-        self._create_model_if_needed()
-
     def _invoke(self, action: str, **params) -> Any:
         """Invoke AnkiConnect API.
 
@@ -149,98 +224,29 @@ class AnkiManager:
             self._configure_deck_preset()
         except AnkiConnectError as e:
             logger.debug(f"Could not configure deck preset: {e}")
+        
+        # Always check model, regardless of preset configuration
+        self._create_model_if_needed()
 
     def _create_model_if_needed(self):
         """Create the custom model if it doesn't exist."""
         # Check if model already exists
         model_names = self._invoke("modelNames")
         if self.model_name in model_names:
-            # Model exists, check if it needs updating
-            self._update_model_if_needed()
+            # Model exists, validate schema (AnkiConnect API doesn't support auto-updates)
+            self._validate_model_schema()
             return
 
-        # Create the model
+        # Create the model using class constants
         model = {
             "modelName": self.model_name,
-            "inOrderFields": [
-                "Text",
-                "Title",
-                "Author",
-                "Source",
-                "Category",
-                "Note",
-                "Tags",
-                "HighlightID",
-                "UpdatedAt",
-                "HighlightURL",
-                "ReadwiseURL",
-                "Color",
-                "IsFavorite",
-            ],
-            "css": """
-                .card {
-                    font-family: arial;
-                    text-align: left;
-                    color: black;
-                    background-color: white;
-                }
-                .highlight {
-                    margin-bottom: 20px;
-                    line-height: 1.4;
-                }
-                .source {
-                    color: #666;
-                    font-style: italic;
-                    margin-bottom: 20px;
-                }
-                .metadata {
-                    color: #555;
-                }
-                .metadata div {
-                    margin: 5px 0;
-                }
-                .note {
-                    margin-top: 15px;
-                    padding: 10px;
-                    background-color: #f0f0f0;
-                    border-left: 3px solid #4CAF50;
-                }
-                .color-indicator {
-                    display: inline-block;
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 50%;
-                    margin-right: 8px;
-                    vertical-align: middle;
-                }
-                .favorite-icon {
-                    color: red;
-                    margin-left: 8px;
-                }
-                .url-link {
-                    word-break: break-all;
-                }
-            """,
+            "inOrderFields": self.MODEL_FIELDS,
+            "css": self.MODEL_CSS,
             "cardTemplates": [
                 {
                     "Name": "Card 1",
-                    "Front": """
-                        <div class="highlight">{{Text}}</div>
-                        <div class="source">— {{Title}}</div>
-                    """,
-                    "Back": """
-                        {{FrontSide}}
-                        <hr id="answer">
-                        <div class="metadata">
-                            <div><strong>Author:</strong> {{Author}}</div>
-                            <div><strong>Source:</strong> {{Source}}</div>
-                            <div><strong>Category:</strong> {{Category}}</div>
-                            {{#Note}}<div class="note"><strong>Note:</strong> {{Note}}</div>{{/Note}}
-                            {{#HighlightURL}}<div class="url-link"><a href="{{HighlightURL}}" target="_blank">View Source ↗</a></div>{{/HighlightURL}}
-                            {{#ReadwiseURL}}<div><a href="{{ReadwiseURL}}" target="_blank">On Readwise.com ↗</a></div>{{/ReadwiseURL}}
-                            <div>{{#IsFavorite}}<span class="favorite-icon">❤️</span>{{/IsFavorite}}{{#Color}}{{^Color:yellow}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color:yellow}}{{/Color}}</div>
-                        </div>
-                    """,
+                    "Front": self.TEMPLATE_FRONT,
+                    "Back": self.TEMPLATE_BACK,
                 }
             ],
         }
@@ -248,81 +254,86 @@ class AnkiManager:
         self._invoke("createModel", **model)
         logger.info(f"Created model '{self.model_name}'")
 
-    def _update_model_if_needed(self):
-        """Check if model needs updating and update template."""
+    def _validate_model_schema(self):
+        """Validate model schema and warn if manual updates needed.
+
+        Note: AnkiConnect API doesn't support automatic model updates,
+        so this method only validates and warns the user.
+        """
         try:
             # Get current fields
             current_fields = self._invoke("modelFieldNames", modelName=self.model_name)
 
-            # Expected fields
-            expected_fields = [
-                "Text",
-                "Title",
-                "Author",
-                "Source",
-                "Category",
-                "Note",
-                "Tags",
-                "HighlightID",
-                "UpdatedAt",
-                "HighlightURL",
-                "ReadwiseURL",
-                "Color",
-                "IsFavorite",
-            ]
-
-            # Check for missing fields
-            missing_fields = [f for f in expected_fields if f not in current_fields]
+            # Check for missing fields using class constant
+            missing_fields = [f for f in self.MODEL_FIELDS if f not in current_fields]
 
             if missing_fields:
-                logger.warning(
-                    f"Model '{self.model_name}' is missing fields: {', '.join(missing_fields)}"
-                )
-                logger.warning("To add missing fields without losing data:")
-                logger.warning("  1. Open Anki → Tools → Manage Note Types")
-                logger.warning(f"  2. Select '{self.model_name}' → Fields")
-                logger.warning(
-                    f"  3. Click 'Add' and create each missing field: {', '.join(missing_fields)}"
-                )
-                logger.warning(
-                    "  4. Then update the card template (Cards button) to show the new fields"
-                )
-                logger.warning(
-                    "Note: New fields will be empty for existing cards, but will populate for future syncs"
-                )
+                logger.warning(dedent(f"""\
+                    Model '{self.model_name}' is missing fields: {', '.join(missing_fields)}
 
-            # Try to update the card template to latest version
+                    To add missing fields without losing data:
+                      1. Open Anki → Tools → Manage Note Types
+                      2. Select '{self.model_name}' → Fields
+                      3. Click 'Add' and create each missing field: {', '.join(missing_fields)}
+                      4. Then update the card template (Cards button) to show the new fields
+
+                    Note: New fields will be empty for existing cards, but will populate for future syncs"""))
+
+            # Check if card templates need updating using class constants
             try:
-                self._invoke(
-                    "updateModelTemplates",
-                    model={
-                        "name": self.model_name,
-                        "templates": {
-                            "Card 1": {
-                                "Front": """
-                                <div class="highlight">{{Text}}</div>
-                                <div class="source">— {{Title}}</div>
-                            """,
-                                "Back": """
-                                {{FrontSide}}
-                                <hr id="answer">
-                                <div class="metadata">
-                                    <div><strong>Author:</strong> {{Author}}</div>
-                                    <div><strong>Source:</strong> {{Source}}</div>
-                                    <div><strong>Category:</strong> {{Category}}</div>
-                                    {{#Note}}<div class="note"><strong>Note:</strong> {{Note}}</div>{{/Note}}
-                                    {{#HighlightURL}}<div class="url-link"><a href="{{HighlightURL}}" target="_blank">View Source ↗</a></div>{{/HighlightURL}}
-                                    {{#ReadwiseURL}}<div><a href="{{ReadwiseURL}}" target="_blank">On Readwise.com ↗</a></div>{{/ReadwiseURL}}
-                                    <div>{{#IsFavorite}}<span class="favorite-icon">❤️</span>{{/IsFavorite}}{{#Color}}{{^Color:yellow}}<span class="color-indicator" style="background-color: {{Color}};"></span>{{/Color:yellow}}{{/Color}}</div>
-                                </div>
-                            """,
-                            }
-                        },
-                    },
-                )
-                logger.debug(f"Updated card template for '{self.model_name}'")
+                # Get current model templates
+                model_templates = self._invoke("modelTemplates", modelName=self.model_name)
+
+                # Normalize whitespace for comparison
+                current_front = " ".join(model_templates.get("Card 1", {}).get("Front", "").split())
+                current_back = " ".join(model_templates.get("Card 1", {}).get("Back", "").split())
+                expected_front_norm = " ".join(self.TEMPLATE_FRONT.split())
+                expected_back_norm = " ".join(self.TEMPLATE_BACK.split())
+
+                if current_front != expected_front_norm or current_back != expected_back_norm:
+                    templates_to_show = []
+                    if current_front != expected_front_norm:
+                        templates_to_show.append(f"Front template:\n{self.TEMPLATE_FRONT.strip()}")
+                    if current_back != expected_back_norm:
+                        templates_to_show.append(f"Back template:\n{self.TEMPLATE_BACK.strip()}")
+
+                    logger.warning(dedent(f"""\
+                        Model '{self.model_name}' card template differs from expected
+
+                        To update the template:
+                          1. Open Anki → Tools → Manage Note Types
+                          2. Select '{self.model_name}' → Cards
+                          3. Update the following template(s):
+
+                        {chr(10).join(templates_to_show)}
+
+                        Note: Template updates apply immediately to all cards"""))
+                else:
+                    logger.debug(f"Card template for '{self.model_name}' is up to date")
             except AnkiConnectError as e:
-                logger.debug(f"Could not update card template: {e}")
+                logger.debug(f"Could not check card template: {e}")
+
+            # Check if CSS needs updating
+            try:
+                model_styling = self._invoke("modelStyling", modelName=self.model_name)
+                current_css = " ".join(model_styling.get("css", "").split())
+                expected_css_norm = " ".join(self.MODEL_CSS.split())
+
+                if current_css != expected_css_norm:
+                    logger.warning(dedent(f"""\
+                        Model '{self.model_name}' CSS differs from expected
+
+                        To update the CSS:
+                          1. Open Anki → Tools → Manage Note Types
+                          2. Select '{self.model_name}' → Cards
+                          3. Click 'Styling' and update the CSS
+
+                        Expected CSS:
+                        {self.MODEL_CSS.strip()}"""))
+                else:
+                    logger.debug(f"CSS for '{self.model_name}' is up to date")
+            except AnkiConnectError as e:
+                logger.debug(f"Could not check model CSS: {e}")
 
         except AnkiConnectError as e:
             logger.debug(f"Could not check model fields: {e}")
