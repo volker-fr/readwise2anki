@@ -118,6 +118,7 @@ class AnkiManager:
             "notes_suspended": 0,
             "notes_skipped": 0,
             "notes_orphaned": 0,
+            "notes_deleted": 0,
         }
 
         # Ensure Anki is running and AnkiConnect is available
@@ -635,26 +636,45 @@ class AnkiManager:
 
         return False
 
-    def sync_states(self, readwise_highlight_ids: set):
-        """Sync card states between Readwise and Anki.
+    def delete_notes(self, note_ids: list) -> int:
+        """Delete notes by their IDs.
 
-        - Suspend cards for highlights that are deleted in Readwise
-        - Identify orphaned cards (exist in Anki but not in Readwise)
+        Args:
+            note_ids: List of note IDs to delete
+
+        Returns:
+            Number of notes deleted
+        """
+        if not note_ids:
+            return 0
+
+        self._invoke("deleteNotes", notes=note_ids)
+        logger.debug(f"Deleted {len(note_ids)} note(s)")
+        return len(note_ids)
+
+    def handle_orphaned_notes(
+        self, readwise_highlight_ids: set, show_details: bool = False, delete: bool = False
+    ):
+        """Detect and optionally show or delete orphaned notes.
+
+        Orphaned notes are notes that exist in Anki but not in the current Readwise export.
 
         Args:
             readwise_highlight_ids: Set of all highlight IDs from Readwise export
+            show_details: If True, show details about each orphaned note
+            delete: If True, delete orphaned notes (implies show_details=True)
         """
         # Get all notes from the deck
         all_notes = self._invoke("findNotes", query=f'deck:"{self.deck_name}"')
 
         if not all_notes:
-            logger.debug("No existing notes in deck")
+            logger.info("No existing notes in deck")
             return
 
         # Get detailed info about all notes
         notes_info = self._invoke("notesInfo", notes=all_notes)
 
-        orphaned_count = 0
+        orphaned_notes = []
         for note in notes_info:
             highlight_id = note["fields"].get("HighlightID", {}).get("value", "")
 
@@ -664,15 +684,39 @@ class AnkiManager:
             # Check if this highlight still exists in Readwise
             if highlight_id not in readwise_highlight_ids:
                 # This note exists in Anki but not in Readwise - it's orphaned
-                orphaned_count += 1
-                logger.debug(f"Orphaned note (not in Readwise): {highlight_id}")
-                # TODO: Decide what to do - suspend? tag as orphaned?
+                orphaned_notes.append(note)
 
-        if orphaned_count > 0:
-            logger.info(
-                f"Found {orphaned_count} orphaned notes (in Anki but not in Readwise)"
-            )
-            self.stats["notes_orphaned"] = orphaned_count
+        if not orphaned_notes:
+            logger.info("No orphaned notes found")
+            return
+
+        orphaned_count = len(orphaned_notes)
+        logger.info(
+            f"Found {orphaned_count} orphaned note{'s' if orphaned_count != 1 else ''} (in Anki but not in Readwise)"
+        )
+
+        # Show details if requested or if deleting
+        if show_details or delete:
+            for note in orphaned_notes:
+                highlight_id = note["fields"].get("HighlightID", {}).get("value", "")
+                title = note["fields"].get("Title", {}).get("value", "Unknown")
+                text = note["fields"].get("Text", {}).get("value", "")
+                # Truncate text for display
+                text_preview = (
+                    text[:100] + "..." if len(text) > 100 else text
+                ).replace("\n", " ")
+
+                logger.info(f"  - {highlight_id}: {title}")
+                logger.info(f"    {text_preview}")
+
+        # Delete if requested
+        if delete:
+            note_ids = [note["noteId"] for note in orphaned_notes]
+            self.delete_notes(note_ids)
+            logger.info(f"Deleted {len(note_ids)} orphaned note{'s' if len(note_ids) != 1 else ''}")
+            self.stats["notes_deleted"] = len(note_ids)
+
+        self.stats["notes_orphaned"] = orphaned_count
 
     def save(self, output_path: str = None) -> None:
         """Save/sync changes (no-op for AnkiConnect, notes are already saved).

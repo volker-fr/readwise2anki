@@ -8,12 +8,11 @@ install: ## Install dependencies with uv
 	uv sync
 
 .PHONY: run
-run: ## Run the CLI tool
-	uv run readwise2anki
+run: sync ## Run the CLI tool (alias for sync)
 
 .PHONY: run-dev
 run-dev: ## Run the CLI tool with local cache
-	uv run readwise2anki --use-cache --verbose
+	uv run readwise2anki sync --use-cache --verbose
 
 .PHONY: test
 test: ## Run tests
@@ -41,7 +40,22 @@ list-highlights: ## List highlights from Readwise
 
 .PHONY: sync
 sync: ## Sync highlights to Anki
-	echo "Not implemented"
-	#uv run readwise2anki --action sync
+	uv run readwise2anki sync
+
+.PHONY: show-orphaned
+show-orphaned: ## Show orphaned notes (in Anki but not in Readwise)
+	uv run readwise2anki show-orphaned
+
+.PHONY: show-orphaned-dev
+show-orphaned-dev: ## Show orphaned notes using local cache
+	uv run readwise2anki show-orphaned --use-cache --verbose
+
+.PHONY: delete-orphaned
+delete-orphaned: ## Delete orphaned notes (in Anki but not in Readwise)
+	uv run readwise2anki delete-orphaned
+
+.PHONY: delete-orphaned-dev
+delete-orphaned-dev: ## Delete orphaned notes using local cache
+	uv run readwise2anki delete-orphaned --use-cache --verbose
 
 .DEFAULT_GOAL := help

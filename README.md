@@ -27,22 +27,42 @@ uv sync
 
 **Important: Make sure Anki is running before syncing!**
 
+### Sync Highlights
+
 ```bash
 # Sync from Readwise API
-readwise2anki --api-token YOUR_TOKEN
+readwise2anki sync --api-token YOUR_TOKEN
 
 # Or set environment variable
 export READWISE_API_TOKEN=your_token
-readwise2anki
+readwise2anki sync
 
 # Specify a custom Anki deck (default: Readwise::imports)
-readwise2anki --deck "MyDeck::MySubdeck"
+readwise2anki sync --deck "MyDeck::MySubdeck"
 
 # Use cached data for development
-readwise2anki --use-cache
+readwise2anki sync --use-cache
 
 # Enable verbose output
-readwise2anki --verbose
+readwise2anki sync --verbose
+
+# Flags can also be placed before the subcommand
+readwise2anki --verbose --use-cache sync
+```
+
+### Manage Orphaned Notes
+
+Orphaned notes are highlights that exist in Anki but have been deleted from Readwise.
+
+```bash
+# Show orphaned notes
+readwise2anki show-orphaned
+
+# Delete orphaned notes
+readwise2anki delete-orphaned
+
+# Use with cache for development
+readwise2anki show-orphaned --use-cache --verbose
 ```
 
 ## Configuration
@@ -87,12 +107,24 @@ Auto Advance will now automatically show the answer almost immediately, making i
   - Links to original source and Readwise
 - Automatic duplicate detection using highlight IDs
 - Updates existing cards when highlights change in Readwise
-- Identifies orphaned cards (in Anki but deleted from Readwise)
+- **Orphaned notes management**: Show and optionally delete notes that were deleted from Readwise
 - Tracks sync statistics
 
 ## Development
 
 ```bash
-# Run with cache for testing
+# Run sync with cache for testing
 make run-dev
+
+# Show all available make targets
+make help
 ```
+
+### Available Make Targets
+
+- `make sync` - Sync highlights to Anki
+- `make show-orphaned` - Show orphaned notes
+- `make delete-orphaned` - Delete orphaned notes
+- `make run-dev` - Run sync with local cache
+- `make show-orphaned-dev` - Show orphaned notes using local cache
+- `make delete-orphaned-dev` - Delete orphaned notes using local cache
