@@ -43,6 +43,13 @@ def args_parser() -> argparse.Namespace:
         help="Path to cache file (default: /tmp/readwise-export.json)",
     )
 
+    parser.add_argument(
+        "--deck",
+        type=str,
+        default="Readwise::imports",
+        help="Anki deck path for syncing notes (default: Readwise::imports)",
+    )
+
     return parser.parse_args()
 
 
@@ -64,7 +71,7 @@ def main() -> int:
         client = ReadwiseClient(args.api_token)
 
         # Create the Anki manager
-        anki_manager = AnkiManager("Readwise")
+        anki_manager = AnkiManager(args.deck)
 
         # Track all highlight IDs from Readwise
         readwise_highlight_ids = set()

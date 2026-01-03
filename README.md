@@ -35,6 +35,9 @@ readwise2anki --api-token YOUR_TOKEN
 export READWISE_API_TOKEN=your_token
 readwise2anki
 
+# Specify a custom Anki deck (default: Readwise::imports)
+readwise2anki --deck "MyDeck::MySubdeck"
+
 # Use cached data for development
 readwise2anki --use-cache
 
@@ -44,6 +47,18 @@ readwise2anki --verbose
 
 ## Configuration
 
+### Deck Path
+
+By default, highlights are synced to `Readwise::imports` (a subdeck under Readwise). You can customize this with the `--deck` option:
+
+```bash
+# Sync to a top-level deck
+readwise2anki --deck "Readwise"
+
+# Sync to a custom nested deck
+readwise2anki --deck "Learning::Readwise::Books"
+```
+
 ### Enable Auto Advance (Optional)
 
 **Requires Anki 23.12 or later**
@@ -51,7 +66,7 @@ readwise2anki --verbose
 To automatically reveal the answer after a brief moment:
 
 1. Open Anki
-2. Click the gear icon next to the "Readwise" deck
+2. Click the gear icon next to your deck (e.g., "Readwise::imports")
 3. Select "Options"
 4. Go to the "Timer" tab
 5. Set **"Seconds to show question for"** to `0.1` (must be non-zero)
