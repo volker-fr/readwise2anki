@@ -167,9 +167,12 @@ def main() -> int:
         anki_manager = AnkiManager(args.deck)
 
         if args.command == "sync":
-            # Normal sync behavior - just sync highlights, no orphan detection
-            load_readwise_highlights(
+            # Normal sync behavior - sync highlights and detect orphaned notes
+            readwise_highlight_ids = load_readwise_highlights(
                 client, args.use_cache, args.cache_path, anki_manager
+            )
+            anki_manager.handle_orphaned_notes(
+                readwise_highlight_ids, show_details=False, delete=False
             )
             anki_manager.save()
 

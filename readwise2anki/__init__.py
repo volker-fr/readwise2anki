@@ -1,3 +1,3 @@
 """Readwise to Anki synchronization tool."""
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
