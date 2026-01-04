@@ -8,6 +8,9 @@ import markdown
 
 logger = logging.getLogger(__name__)
 
+# Constants
+TEXT_PREVIEW_LENGTH = 100
+
 
 class AnkiConnectError(Exception):
     """Exception raised for AnkiConnect API errors."""
@@ -208,13 +211,22 @@ class AnkiManager:
             raise AnkiConnectError(f"Failed to connect to AnkiConnect: {e}")
 
     def _check_anki_connect(self):
-        """Check if AnkiConnect is available."""
+        """Check if AnkiConnect is available.
+
+        Raises:
+            AnkiConnectError: If Anki is not running or AnkiConnect is not available
+        """
         try:
             self._invoke("version")
         except AnkiConnectError as e:
-            raise AnkiConnectError(
-                f"Cannot connect to Anki. Make sure Anki is running and AnkiConnect add-on is installed. Error: {e}"
-            )
+            # Re-raise with a cleaner user-facing message
+            # The original error details are preserved in the exception chain
+            raise AnkiConnectError(dedent(f"""\
+                Cannot connect to Anki. Please make sure:
+                  1. Anki is running
+                  2. AnkiConnect add-on is installed (code: 2055492159)
+                  3. AnkiConnect is configured to allow connections
+                Error: {e}"""))
 
     def _create_deck_if_needed(self):
         """Create the deck if it doesn't exist."""
@@ -395,118 +407,120 @@ class AnkiManager:
             "findNotes", query=f'deck:"{self.deck_name}" HighlightID:{highlight_id}'
         )
 
+        # Update existing note if found
         if existing_notes:
-            # Get existing note info
             existing_note_info = self._invoke("notesInfo", notes=existing_notes)
-            if existing_note_info:
-                existing = existing_note_info[0]
-                existing_fields = existing["fields"]
-                note_id = existing["noteId"]
+            if not existing_note_info:
+                return None
 
-                # Check if any field needs updating
-                needs_update = False
-                update_fields = {}
+            existing = existing_note_info[0]
+            existing_fields = existing["fields"]
+            note_id = existing["noteId"]
 
-                # Convert markdown to HTML for comparison
-                text_html = markdown.markdown(text, extensions=["extra", "nl2br"])
+            # Check if any field needs updating
+            needs_update = False
+            update_fields = {}
 
-                # Check each field - update if it exists in the model and value changed
-                if (
-                    "Text" in existing_fields
-                    and existing_fields["Text"]["value"] != text_html
-                ):
-                    update_fields["Text"] = str(text_html)
-                    needs_update = True
-                if (
-                    "Title" in existing_fields
-                    and existing_fields["Title"]["value"] != title
-                ):
-                    update_fields["Title"] = str(title)
-                    needs_update = True
-                if (
-                    "Author" in existing_fields
-                    and existing_fields["Author"]["value"] != author
-                ):
-                    update_fields["Author"] = str(author)
-                    needs_update = True
-                if (
-                    "Source" in existing_fields
-                    and existing_fields["Source"]["value"] != source
-                ):
-                    update_fields["Source"] = str(source)
-                    needs_update = True
-                if (
-                    "Category" in existing_fields
-                    and existing_fields["Category"]["value"] != category
-                ):
-                    update_fields["Category"] = str(category)
-                    needs_update = True
-                # Convert markdown to HTML for notes
-                note_html = (
-                    markdown.markdown(note_text, extensions=["extra", "nl2br"])
-                    if note_text
-                    else ""
+            # Convert markdown to HTML for comparison
+            text_html = markdown.markdown(text, extensions=["extra", "nl2br"])
+
+            # Check each field - update if it exists in the model and value changed
+            if (
+                "Text" in existing_fields
+                and existing_fields["Text"]["value"] != text_html
+            ):
+                update_fields["Text"] = str(text_html)
+                needs_update = True
+            if (
+                "Title" in existing_fields
+                and existing_fields["Title"]["value"] != title
+            ):
+                update_fields["Title"] = str(title)
+                needs_update = True
+            if (
+                "Author" in existing_fields
+                and existing_fields["Author"]["value"] != author
+            ):
+                update_fields["Author"] = str(author)
+                needs_update = True
+            if (
+                "Source" in existing_fields
+                and existing_fields["Source"]["value"] != source
+            ):
+                update_fields["Source"] = str(source)
+                needs_update = True
+            if (
+                "Category" in existing_fields
+                and existing_fields["Category"]["value"] != category
+            ):
+                update_fields["Category"] = str(category)
+                needs_update = True
+            # Convert markdown to HTML for notes
+            note_html = (
+                markdown.markdown(note_text, extensions=["extra", "nl2br"])
+                if note_text
+                else ""
+            )
+            if (
+                "Note" in existing_fields
+                and existing_fields["Note"]["value"] != note_html
+            ):
+                update_fields["Note"] = str(note_html)
+                needs_update = True
+            if "Tags" in existing_fields and existing_fields["Tags"][
+                "value"
+            ] != ", ".join(tag_list):
+                update_fields["Tags"] = ", ".join(tag_list)
+                needs_update = True
+            if "UpdatedAt" in existing_fields and existing_fields["UpdatedAt"][
+                "value"
+            ] != (str(updated) if updated else ""):
+                update_fields["UpdatedAt"] = str(updated) if updated else ""
+                needs_update = True
+            if "HighlightURL" in existing_fields and existing_fields[
+                "HighlightURL"
+            ]["value"] != (str(highlight_url) if highlight_url else ""):
+                update_fields["HighlightURL"] = (
+                    str(highlight_url) if highlight_url else ""
                 )
-                if (
-                    "Note" in existing_fields
-                    and existing_fields["Note"]["value"] != note_html
-                ):
-                    update_fields["Note"] = str(note_html)
+                needs_update = True
+            if "ReadwiseURL" in existing_fields and existing_fields["ReadwiseURL"][
+                "value"
+            ] != (str(readwise_url) if readwise_url else ""):
+                update_fields["ReadwiseURL"] = (
+                    str(readwise_url) if readwise_url else ""
+                )
+                needs_update = True
+            if "Color" in existing_fields and existing_fields["Color"]["value"] != (
+                str(color) if color else ""
+            ):
+                update_fields["Color"] = str(color) if color else ""
+                needs_update = True
+            if "IsFavorite" in existing_fields:
+                new_fav = "true" if is_favorite else ""
+                if existing_fields["IsFavorite"]["value"] != new_fav:
+                    update_fields["IsFavorite"] = new_fav
                     needs_update = True
-                if "Tags" in existing_fields and existing_fields["Tags"][
-                    "value"
-                ] != ", ".join(tag_list):
-                    update_fields["Tags"] = ", ".join(tag_list)
-                    needs_update = True
-                if "UpdatedAt" in existing_fields and existing_fields["UpdatedAt"][
-                    "value"
-                ] != (str(updated) if updated else ""):
-                    update_fields["UpdatedAt"] = str(updated) if updated else ""
-                    needs_update = True
-                if "HighlightURL" in existing_fields and existing_fields[
-                    "HighlightURL"
-                ]["value"] != (str(highlight_url) if highlight_url else ""):
-                    update_fields["HighlightURL"] = (
-                        str(highlight_url) if highlight_url else ""
-                    )
-                    needs_update = True
-                if "ReadwiseURL" in existing_fields and existing_fields["ReadwiseURL"][
-                    "value"
-                ] != (str(readwise_url) if readwise_url else ""):
-                    update_fields["ReadwiseURL"] = (
-                        str(readwise_url) if readwise_url else ""
-                    )
-                    needs_update = True
-                if "Color" in existing_fields and existing_fields["Color"]["value"] != (
-                    str(color) if color else ""
-                ):
-                    update_fields["Color"] = str(color) if color else ""
-                    needs_update = True
-                if "IsFavorite" in existing_fields:
-                    new_fav = "true" if is_favorite else ""
-                    if existing_fields["IsFavorite"]["value"] != new_fav:
-                        update_fields["IsFavorite"] = new_fav
-                        needs_update = True
 
-                if needs_update:
-                    logger.debug(
-                        f"Updating note for highlight {highlight_id} - fields changed: {', '.join(update_fields.keys())}"
-                    )
+            if not needs_update:
+                self.stats["notes_skipped"] += 1
+                return None
 
-                    # Update note fields
-                    self._invoke(
-                        "updateNoteFields",
-                        note={"id": note_id, "fields": update_fields},
-                    )
+            logger.debug(
+                f"Updating note for highlight {highlight_id} - fields changed: {', '.join(update_fields.keys())}"
+            )
 
-                    # Update tags
-                    self._invoke("updateNoteTags", note=note_id, tags=tag_list)
+            # Update note fields
+            self._invoke(
+                "updateNoteFields",
+                note={"id": note_id, "fields": update_fields},
+            )
 
-                    self.stats["notes_updated"] += 1
-                    return note_id
-                else:
-                    self.stats["notes_skipped"] += 1
-            return None
+            # Update tags
+            self._invoke("updateNoteTags", note=note_id, tags=tag_list)
+
+            self.stats["notes_updated"] += 1
+            return note_id
 
         # Create the note - allow duplicates based on text, we track by HighlightID instead
         note = {
@@ -652,6 +666,19 @@ class AnkiManager:
         logger.debug(f"Deleted {len(note_ids)} note(s)")
         return len(note_ids)
 
+    def _get_note_field(self, note: dict, field_name: str, default: str = "") -> str:
+        """Extract a field value from a note.
+
+        Args:
+            note: Note info dict from AnkiConnect
+            field_name: Name of the field to extract
+            default: Default value if field is missing
+
+        Returns:
+            Field value or default
+        """
+        return note["fields"].get(field_name, {}).get("value", default)
+
     def handle_orphaned_notes(
         self, readwise_highlight_ids: set, show_details: bool = False, delete: bool = False
     ):
@@ -676,7 +703,7 @@ class AnkiManager:
 
         orphaned_notes = []
         for note in notes_info:
-            highlight_id = note["fields"].get("HighlightID", {}).get("value", "")
+            highlight_id = self._get_note_field(note, "HighlightID")
 
             if not highlight_id:
                 continue
@@ -698,12 +725,12 @@ class AnkiManager:
         # Show details if requested or if deleting
         if show_details or delete:
             for note in orphaned_notes:
-                highlight_id = note["fields"].get("HighlightID", {}).get("value", "")
-                title = note["fields"].get("Title", {}).get("value", "Unknown")
-                text = note["fields"].get("Text", {}).get("value", "")
+                highlight_id = self._get_note_field(note, "HighlightID")
+                title = self._get_note_field(note, "Title", "Unknown")
+                text = self._get_note_field(note, "Text")
                 # Truncate text for display
                 text_preview = (
-                    text[:100] + "..." if len(text) > 100 else text
+                    text[:TEXT_PREVIEW_LENGTH] + "..." if len(text) > TEXT_PREVIEW_LENGTH else text
                 ).replace("\n", " ")
 
                 logger.info(f"  - {highlight_id}: {title}")

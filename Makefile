@@ -3,6 +3,9 @@
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
+# Common flags for development
+DEV_FLAGS = --use-cache --verbose
+
 .PHONY: install
 install: ## Install dependencies with uv
 	uv sync
@@ -12,7 +15,7 @@ run: sync ## Run the CLI tool (alias for sync)
 
 .PHONY: run-dev
 run-dev: ## Run the CLI tool with local cache
-	uv run readwise2anki sync --use-cache --verbose
+	uv run readwise2anki sync $(DEV_FLAGS)
 
 .PHONY: test
 test: ## Run tests
@@ -48,7 +51,7 @@ show-orphaned: ## Show orphaned notes (in Anki but not in Readwise)
 
 .PHONY: show-orphaned-dev
 show-orphaned-dev: ## Show orphaned notes using local cache
-	uv run readwise2anki show-orphaned --use-cache --verbose
+	uv run readwise2anki show-orphaned $(DEV_FLAGS)
 
 .PHONY: delete-orphaned
 delete-orphaned: ## Delete orphaned notes (in Anki but not in Readwise)
@@ -56,6 +59,6 @@ delete-orphaned: ## Delete orphaned notes (in Anki but not in Readwise)
 
 .PHONY: delete-orphaned-dev
 delete-orphaned-dev: ## Delete orphaned notes using local cache
-	uv run readwise2anki delete-orphaned --use-cache --verbose
+	uv run readwise2anki delete-orphaned $(DEV_FLAGS)
 
 .DEFAULT_GOAL := help

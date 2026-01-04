@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-01-03
+
+### Changed
+- **Code quality**: DRY refactoring - extracted helpers to eliminate duplication, flattened nesting, removed unnecessary `else` statements
+- **Constants**: Extracted magic strings (`DEFAULT_CACHE_PATH`, `DEFAULT_DECK_NAME`, `TEXT_PREVIEW_LENGTH`)
+- **Consistency**: Fixed logger usage, simplified None checks, removed duplicate validation
+- **Error handling**: Better Anki connection errors; verbose details only with `--verbose`
+
 ## [0.1.3] - 2026-01-03
 
 ### Added

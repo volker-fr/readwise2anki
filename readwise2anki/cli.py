@@ -8,7 +8,48 @@ import logging
 from readwise_api import ReadwiseClient
 from .cache import _cache_load_export
 from .process import process_book
-from .anki import AnkiManager
+from .anki import AnkiManager, AnkiConnectError
+
+# Constants
+DEFAULT_CACHE_PATH = "/tmp/readwise-export.json"
+DEFAULT_DECK_NAME = "Readwise::imports"
+
+
+def add_common_arguments(parser: argparse.ArgumentParser, require_token: bool = False) -> None:
+    """Add common arguments to a parser.
+
+    Args:
+        parser: The argument parser to add arguments to
+        require_token: Whether --api-token is required
+    """
+    api_token_env = os.getenv("READWISE_API_TOKEN")
+    parser.add_argument(
+        "--api-token",
+        type=str,
+        default=api_token_env,
+        required=require_token and api_token_env is None,
+        help="Readwise API token (or set READWISE_API_TOKEN env var)",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose output"
+    )
+    parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        help="Use cached export data instead of fetching from API (mainly for dev work)",
+    )
+    parser.add_argument(
+        "--cache-path",
+        type=str,
+        default=DEFAULT_CACHE_PATH,
+        help=f"Path to cache file (default: {DEFAULT_CACHE_PATH})",
+    )
+    parser.add_argument(
+        "--deck",
+        type=str,
+        default=DEFAULT_DECK_NAME,
+        help=f"Anki deck path for syncing notes (default: {DEFAULT_DECK_NAME})",
+    )
 
 
 def args_parser() -> tuple[argparse.Namespace, argparse.ArgumentParser]:
@@ -21,39 +62,8 @@ def args_parser() -> tuple[argparse.Namespace, argparse.ArgumentParser]:
         prog="readwise2anki", description="Sync Readwise highlights to Anki"
     )
 
-    # Common arguments
-    api_token_env = os.getenv("READWISE_API_TOKEN")
-    parser.add_argument(
-        "--api-token",
-        type=str,
-        default=api_token_env,
-        required=api_token_env is None,
-        help="Readwise API token (or set READWISE_API_TOKEN env var)",
-    )
-
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output"
-    )
-
-    parser.add_argument(
-        "--use-cache",
-        action="store_true",
-        help="Use cached export data instead of fetching from API (mainly for dev work)",
-    )
-
-    parser.add_argument(
-        "--cache-path",
-        type=str,
-        default="/tmp/readwise-export.json",
-        help="Path to cache file (default: /tmp/readwise-export.json)",
-    )
-
-    parser.add_argument(
-        "--deck",
-        type=str,
-        default="Readwise::imports",
-        help="Anki deck path for syncing notes (default: Readwise::imports)",
-    )
+    # Add common arguments to main parser
+    add_common_arguments(parser, require_token=True)
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -61,32 +71,7 @@ def args_parser() -> tuple[argparse.Namespace, argparse.ArgumentParser]:
     # Create parent parser with common arguments for subcommands
     # This allows flags to work both before and after the subcommand
     parent_parser = argparse.ArgumentParser(add_help=False)
-    parent_parser.add_argument(
-        "--api-token",
-        type=str,
-        default=api_token_env,
-        help="Readwise API token (or set READWISE_API_TOKEN env var)",
-    )
-    parent_parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output"
-    )
-    parent_parser.add_argument(
-        "--use-cache",
-        action="store_true",
-        help="Use cached export data instead of fetching from API (mainly for dev work)",
-    )
-    parent_parser.add_argument(
-        "--cache-path",
-        type=str,
-        default="/tmp/readwise-export.json",
-        help="Path to cache file (default: /tmp/readwise-export.json)",
-    )
-    parent_parser.add_argument(
-        "--deck",
-        type=str,
-        default="Readwise::imports",
-        help="Anki deck path for syncing notes (default: Readwise::imports)",
-    )
+    add_common_arguments(parent_parser)
 
     # sync subcommand
     subparsers.add_parser(
@@ -120,8 +105,22 @@ def configure_logging(verbose: bool) -> None:
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("MARKDOWN").setLevel(logging.WARNING)
-    else:
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        return
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+
+def process_export_item(item: dict, anki_manager: AnkiManager, highlight_ids: set) -> None:
+    """Process a single export item and collect highlight IDs.
+
+    Args:
+        item: Export item from Readwise
+        anki_manager: AnkiManager instance
+        highlight_ids: Set to add highlight IDs to
+    """
+    for h in item.get("highlights", []):
+        highlight_ids.add(str(h.get("id", "")))
+    process_book(item, anki_manager)
 
 
 def load_readwise_highlights(
@@ -143,17 +142,11 @@ def load_readwise_highlights(
     if use_cache:
         export = _cache_load_export(client, cache_path)
         for item in export:
-            # Collect highlight IDs
-            for h in item.get("highlights", []):
-                readwise_highlight_ids.add(str(h.get("id", "")))
-            process_book(item, anki_manager)
+            process_export_item(item, anki_manager, readwise_highlight_ids)
     else:
         # stream from API, more memory efficient
         for item in client.get_export_stream():
-            # Collect highlight IDs
-            for h in item.get("highlights", []):
-                readwise_highlight_ids.add(str(h.get("id", "")))
-            process_book(item, anki_manager)
+            process_export_item(item, anki_manager, readwise_highlight_ids)
 
     return readwise_highlight_ids
 
@@ -199,11 +192,17 @@ def main() -> int:
             )
 
         return 0
+    except AnkiConnectError as e:
+        # Special handling for Anki connection errors
+        logging.error(str(e))
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return 1
     except Exception as e:
         logging.error(f"An error occurred: {e}")
         if args.verbose:
             import traceback
-
             traceback.print_exc()
         return 1
 
