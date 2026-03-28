@@ -650,6 +650,13 @@ class AnkiManager:
 
         return False
 
+    def delete_note_by_highlight_id(self, highlight_id: str) -> bool:
+        """Delete a note by its Readwise highlight ID."""
+        notes = self._invoke(
+            "findNotes", query=f'deck:"{self.deck_name}" HighlightID:{highlight_id}'
+        )
+        return self.delete_notes(notes) > 0
+
     def delete_notes(self, note_ids: list) -> int:
         """Delete notes by their IDs.
 

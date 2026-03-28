@@ -60,5 +60,3 @@ delete-orphaned: ## Delete orphaned notes (in Anki but not in Readwise)
 .PHONY: delete-orphaned-dev
 delete-orphaned-dev: ## Delete orphaned notes using local cache
 	uv run readwise2anki delete-orphaned $(DEV_FLAGS)
-
-.DEFAULT_GOAL := help

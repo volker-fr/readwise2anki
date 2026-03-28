@@ -1,6 +1,7 @@
 """Processing functions for converting Readwise data to Anki."""
 
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,17 @@ def process_highlight(highlight, book, anki_manager):
         if anki_manager.suspend_note(highlight_id):
             anki_manager.stats["notes_suspended"] += 1
             logger.debug(f"Suspended deleted highlight {highlight_id}")
+        return
+
+    text = highlight.get("text", "")
+    if re.match(r"^Delete$", text.strip()):
+        highlight_id = str(highlight.get("id", ""))
+        logger.debug(
+            f"Found highlight {highlight_id} only containing the word Delete"
+        )
+        if anki_manager.delete_note_by_highlight_id(highlight_id):
+            anki_manager.stats["notes_deleted"] += 1
+            logger.debug(f"Deleted highlight {highlight_id} from Anki")
         return
 
     if book.get("category") == "books":
