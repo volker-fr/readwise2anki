@@ -221,12 +221,14 @@ class AnkiManager:
         except AnkiConnectError as e:
             # Re-raise with a cleaner user-facing message
             # The original error details are preserved in the exception chain
-            raise AnkiConnectError(dedent(f"""\
+            raise AnkiConnectError(
+                dedent(f"""\
                 Cannot connect to Anki. Please make sure:
                   1. Anki is running
                   2. AnkiConnect add-on is installed (code: 2055492159)
                   3. AnkiConnect is configured to allow connections
-                Error: {e}"""))
+                Error: {e}""")
+            )
 
     def _create_deck_if_needed(self):
         """Create the deck if it doesn't exist."""
@@ -237,7 +239,7 @@ class AnkiManager:
             self._configure_deck_preset()
         except AnkiConnectError as e:
             logger.debug(f"Could not configure deck preset: {e}")
-        
+
         # Always check model, regardless of preset configuration
         self._create_model_if_needed()
 
@@ -281,36 +283,52 @@ class AnkiManager:
             missing_fields = [f for f in self.MODEL_FIELDS if f not in current_fields]
 
             if missing_fields:
-                logger.warning(dedent(f"""\
-                    Model '{self.model_name}' is missing fields: {', '.join(missing_fields)}
+                logger.warning(
+                    dedent(f"""\
+                    Model '{self.model_name}' is missing fields: {", ".join(missing_fields)}
 
                     To add missing fields without losing data:
                       1. Open Anki → Tools → Manage Note Types
                       2. Select '{self.model_name}' → Fields
-                      3. Click 'Add' and create each missing field: {', '.join(missing_fields)}
+                      3. Click 'Add' and create each missing field: {", ".join(missing_fields)}
                       4. Then update the card template (Cards button) to show the new fields
 
-                    Note: New fields will be empty for existing cards, but will populate for future syncs"""))
+                    Note: New fields will be empty for existing cards, but will populate for future syncs""")
+                )
 
             # Check if card templates need updating using class constants
             try:
                 # Get current model templates
-                model_templates = self._invoke("modelTemplates", modelName=self.model_name)
+                model_templates = self._invoke(
+                    "modelTemplates", modelName=self.model_name
+                )
 
                 # Normalize whitespace for comparison
-                current_front = " ".join(model_templates.get("Card 1", {}).get("Front", "").split())
-                current_back = " ".join(model_templates.get("Card 1", {}).get("Back", "").split())
+                current_front = " ".join(
+                    model_templates.get("Card 1", {}).get("Front", "").split()
+                )
+                current_back = " ".join(
+                    model_templates.get("Card 1", {}).get("Back", "").split()
+                )
                 expected_front_norm = " ".join(self.TEMPLATE_FRONT.split())
                 expected_back_norm = " ".join(self.TEMPLATE_BACK.split())
 
-                if current_front != expected_front_norm or current_back != expected_back_norm:
+                if (
+                    current_front != expected_front_norm
+                    or current_back != expected_back_norm
+                ):
                     templates_to_show = []
                     if current_front != expected_front_norm:
-                        templates_to_show.append(f"Front template:\n{self.TEMPLATE_FRONT.strip()}")
+                        templates_to_show.append(
+                            f"Front template:\n{self.TEMPLATE_FRONT.strip()}"
+                        )
                     if current_back != expected_back_norm:
-                        templates_to_show.append(f"Back template:\n{self.TEMPLATE_BACK.strip()}")
+                        templates_to_show.append(
+                            f"Back template:\n{self.TEMPLATE_BACK.strip()}"
+                        )
 
-                    logger.warning(dedent(f"""\
+                    logger.warning(
+                        dedent(f"""\
                         Model '{self.model_name}' card template differs from expected
 
                         To update the template:
@@ -320,7 +338,8 @@ class AnkiManager:
 
                         {chr(10).join(templates_to_show)}
 
-                        Note: Template updates apply immediately to all cards"""))
+                        Note: Template updates apply immediately to all cards""")
+                    )
                 else:
                     logger.debug(f"Card template for '{self.model_name}' is up to date")
             except AnkiConnectError as e:
@@ -333,7 +352,8 @@ class AnkiManager:
                 expected_css_norm = " ".join(self.MODEL_CSS.split())
 
                 if current_css != expected_css_norm:
-                    logger.warning(dedent(f"""\
+                    logger.warning(
+                        dedent(f"""\
                         Model '{self.model_name}' CSS differs from expected
 
                         To update the CSS:
@@ -342,7 +362,8 @@ class AnkiManager:
                           3. Click 'Styling' and update the CSS
 
                         Expected CSS:
-                        {self.MODEL_CSS.strip()}"""))
+                        {self.MODEL_CSS.strip()}""")
+                    )
                 else:
                     logger.debug(f"CSS for '{self.model_name}' is up to date")
             except AnkiConnectError as e:
@@ -477,9 +498,9 @@ class AnkiManager:
             ] != (str(updated) if updated else ""):
                 update_fields["UpdatedAt"] = str(updated) if updated else ""
                 needs_update = True
-            if "HighlightURL" in existing_fields and existing_fields[
-                "HighlightURL"
-            ]["value"] != (str(highlight_url) if highlight_url else ""):
+            if "HighlightURL" in existing_fields and existing_fields["HighlightURL"][
+                "value"
+            ] != (str(highlight_url) if highlight_url else ""):
                 update_fields["HighlightURL"] = (
                     str(highlight_url) if highlight_url else ""
                 )
@@ -487,9 +508,7 @@ class AnkiManager:
             if "ReadwiseURL" in existing_fields and existing_fields["ReadwiseURL"][
                 "value"
             ] != (str(readwise_url) if readwise_url else ""):
-                update_fields["ReadwiseURL"] = (
-                    str(readwise_url) if readwise_url else ""
-                )
+                update_fields["ReadwiseURL"] = str(readwise_url) if readwise_url else ""
                 needs_update = True
             if "Color" in existing_fields and existing_fields["Color"]["value"] != (
                 str(color) if color else ""
@@ -687,7 +706,10 @@ class AnkiManager:
         return note["fields"].get(field_name, {}).get("value", default)
 
     def handle_orphaned_notes(
-        self, readwise_highlight_ids: set, show_details: bool = False, delete: bool = False
+        self,
+        readwise_highlight_ids: set,
+        show_details: bool = False,
+        delete: bool = False,
     ):
         """Detect and optionally show or delete orphaned notes.
 
@@ -742,7 +764,9 @@ class AnkiManager:
                 text = self._get_note_field(note, "Text")
                 # Truncate text for display
                 text_preview = (
-                    text[:TEXT_PREVIEW_LENGTH] + "..." if len(text) > TEXT_PREVIEW_LENGTH else text
+                    text[:TEXT_PREVIEW_LENGTH] + "..."
+                    if len(text) > TEXT_PREVIEW_LENGTH
+                    else text
                 ).replace("\n", " ")
 
                 logger.info(f"  - {highlight_id}: {title}")
@@ -752,7 +776,9 @@ class AnkiManager:
         if delete:
             note_ids = [note["noteId"] for note in orphaned_notes]
             self.delete_notes(note_ids)
-            logger.info(f"Deleted {len(note_ids)} orphaned note{'s' if len(note_ids) != 1 else ''}")
+            logger.info(
+                f"Deleted {len(note_ids)} orphaned note{'s' if len(note_ids) != 1 else ''}"
+            )
             self.stats["notes_deleted"] = len(note_ids)
 
         self.stats["notes_orphaned"] = orphaned_count

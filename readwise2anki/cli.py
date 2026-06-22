@@ -15,7 +15,9 @@ DEFAULT_CACHE_PATH = "/tmp/readwise-export.json"
 DEFAULT_DECK_NAME = "Readwise::imports"
 
 
-def add_common_arguments(parser: argparse.ArgumentParser, require_token: bool = False) -> None:
+def add_common_arguments(
+    parser: argparse.ArgumentParser, require_token: bool = False
+) -> None:
     """Add common arguments to a parser.
 
     Args:
@@ -110,7 +112,9 @@ def configure_logging(verbose: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
-def process_export_item(item: dict, anki_manager: AnkiManager, highlight_ids: set) -> None:
+def process_export_item(
+    item: dict, anki_manager: AnkiManager, highlight_ids: set
+) -> None:
     """Process a single export item and collect highlight IDs.
 
     Args:
@@ -200,12 +204,14 @@ def main() -> int:
         logging.error(str(e))
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
     except Exception as e:
         logging.error(f"An error occurred: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 

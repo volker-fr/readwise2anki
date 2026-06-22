@@ -24,9 +24,7 @@ def process_highlight(highlight, book, anki_manager):
     text = highlight.get("text", "")
     if re.match(r"^Delete$", text.strip()):
         highlight_id = str(highlight.get("id", ""))
-        logger.debug(
-            f"Found highlight {highlight_id} only containing the word Delete"
-        )
+        logger.debug(f"Found highlight {highlight_id} only containing the word Delete")
         if anki_manager.delete_note_by_highlight_id(highlight_id):
             anki_manager.stats["notes_deleted"] += 1
             logger.debug(f"Deleted highlight {highlight_id} from Anki")
