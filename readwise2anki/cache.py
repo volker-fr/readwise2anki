@@ -1,9 +1,12 @@
 """Cache utilities for saving/loading Readwise data locally."""
 
 import json
+import logging
 from typing import List, Dict, Any
 
 from readwise_api import ReadwiseClient
+
+logger = logging.getLogger(__name__)
 
 
 def _cache_save_export(
@@ -49,7 +52,7 @@ def _cache_load_export(
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError as _:
         _cache_save_export(client, file_path)
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)

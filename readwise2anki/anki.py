@@ -731,8 +731,8 @@ class AnkiManager:
 
         # Show helpful commands if not showing details and not deleting (i.e., during sync)
         if not show_details and not delete:
-            logger.info(f"To view details: readwise2anki show-orphaned")
-            logger.info(f"To delete them: readwise2anki delete-orphaned")
+            logger.info("To view details: readwise2anki show-orphaned")
+            logger.info("To delete them: readwise2anki delete-orphaned")
 
         # Show details if requested or if deleting
         if show_details or delete:
