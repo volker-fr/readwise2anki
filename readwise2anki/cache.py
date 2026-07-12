@@ -34,7 +34,7 @@ def _cache_load_export(
     If the file doesn't exist, fetches data from API and saves it.
 
     Args:
-        client: ReadwiseClient instance
+        client: ReadwiseClient instance (optional if cache file exists and is valid)
         file_path: Path to the JSON file
 
     Returns:
@@ -48,11 +48,21 @@ def _cache_load_export(
             data = json.load(f)
         return data
     except FileNotFoundError:
+        if client is None:
+            raise FileNotFoundError(
+                f"Cache file {file_path} does not exist and no API token provided. "
+                "Please provide an API token or ensure the cache file exists."
+            )
         _cache_save_export(client, file_path)
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data
     except json.JSONDecodeError as _:
+        if client is None:
+            raise ValueError(
+                f"Cache file {file_path} is invalid JSON and no API token provided. "
+                "Please provide an API token or ensure the cache file is valid."
+            )
         _cache_save_export(client, file_path)
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)

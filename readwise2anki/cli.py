@@ -54,6 +54,20 @@ def add_common_arguments(
     )
 
 
+def add_delete_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add delete-related arguments to a parser.
+
+    Args:
+        parser: The argument parser to add arguments to
+    """
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Skip confirmation prompt before deleting",
+    )
+
+
 def args_parser() -> tuple[argparse.Namespace, argparse.ArgumentParser]:
     """Create the argument parser.
 
@@ -64,16 +78,17 @@ def args_parser() -> tuple[argparse.Namespace, argparse.ArgumentParser]:
         prog="readwise2anki", description="Sync Readwise highlights to Anki"
     )
 
-    # Add common arguments to main parser
-    add_common_arguments(parser, require_token=True)
-
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Create parent parser with common arguments for subcommands
-    # This allows flags to work both before and after the subcommand
     parent_parser = argparse.ArgumentParser(add_help=False)
     add_common_arguments(parent_parser)
+
+    # Create parent parser for delete operations with --force flag
+    delete_parent_parser = argparse.ArgumentParser(add_help=False)
+    add_common_arguments(delete_parent_parser)
+    add_delete_arguments(delete_parent_parser)
 
     # sync subcommand
     subparsers.add_parser(
@@ -93,7 +108,7 @@ def args_parser() -> tuple[argparse.Namespace, argparse.ArgumentParser]:
     subparsers.add_parser(
         "delete-orphaned",
         help="Delete orphaned notes (notes in Anki but not in Readwise)",
-        parents=[parent_parser],
+        parents=[delete_parent_parser],
     )
 
     return parser.parse_args(), parser
@@ -133,13 +148,17 @@ def load_readwise_highlights(
     """Load highlights from Readwise and process them.
 
     Args:
-        client: ReadwiseClient instance
+        client: ReadwiseClient instance (optional when using cache)
         use_cache: Whether to use cached export data
         cache_path: Path to cache file
         anki_manager: AnkiManager instance
 
     Returns:
         Set of all highlight IDs from Readwise
+
+    Raises:
+        ValueError: If using cache with no client and cache file is missing/invalid
+        FileNotFoundError: If using cache with no client and cache file is missing
     """
     readwise_highlight_ids = set()
 
@@ -167,8 +186,18 @@ def main() -> int:
     configure_logging(args.verbose)
 
     try:
-        client = ReadwiseClient(args.api_token)
+        # Check if API token is required (not needed when using cache with valid file)
+        if not args.use_cache and not args.api_token:
+            logging.error(
+                "API token is required when not using cache. "
+                "Set READWISE_API_TOKEN environment variable or use --api-token flag."
+            )
+            return 1
+
+        # Initialize clients
+        client = ReadwiseClient(args.api_token) if args.api_token else None
         anki_manager = AnkiManager(args.deck)
+        anki_manager.initialize()
 
         if args.command == "sync":
             # Normal sync behavior - sync highlights and detect orphaned notes
@@ -190,12 +219,13 @@ def main() -> int:
             )
 
         elif args.command == "delete-orphaned":
-            # Delete orphaned notes
+            # Delete orphaned notes (with confirmation)
             readwise_highlight_ids = load_readwise_highlights(
                 client, args.use_cache, args.cache_path, anki_manager
             )
             anki_manager.handle_orphaned_notes(
-                readwise_highlight_ids, show_details=True, delete=True
+                readwise_highlight_ids, show_details=True, delete=True, 
+                force=args.force
             )
 
         return 0

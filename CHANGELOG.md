@@ -45,8 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `make delete-orphaned` - Delete orphaned notes
   - `make delete-orphaned-dev` - Delete orphaned notes using local cache
   - `make run` now aliases to `make sync`
-- **Flexible argument parsing**: Common flags (`--verbose`, `--use-cache`, etc.) can now be specified either before or after the subcommand
-
 ### Changed
 
 - **BREAKING**: CLI now requires a subcommand. Running `readwise2anki` without arguments shows help instead of syncing
@@ -54,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New: `readwise2anki sync --use-cache`
 - Renamed internal method `sync_states()` to `handle_orphaned_notes()` for clarity
 - Refactored CLI into smaller functions: `configure_logging()`, `load_readwise_highlights()`
-- Normal sync no longer detects or reports orphaned notes (use dedicated commands instead)
+- Sync now detects orphaned notes and shows summary, but doesn't display details (use `show-orphaned` for details)
 
 ### Fixed
 

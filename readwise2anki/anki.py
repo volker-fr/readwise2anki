@@ -124,6 +124,12 @@ class AnkiManager:
             "notes_deleted": 0,
         }
 
+    def initialize(self) -> None:
+        """Initialize AnkiConnect connection and create deck/model if needed.
+
+        This method performs network calls and should be called after __init__.
+        Separated for testability.
+        """
         # Ensure Anki is running and AnkiConnect is available
         self._check_anki_connect()
 
@@ -397,6 +403,15 @@ class AnkiManager:
             else ""
         )
         highlight_id = str(highlight.get("id", ""))
+        
+        # Guard against missing highlight IDs
+        if not highlight_id:
+            logger.warning(
+                f"Highlight missing ID - text preview: {text[:50]}..."
+            )
+            self.stats["notes_skipped"] += 1
+            return None
+        
         updated = highlight.get(
             "updated_at", ""
         )  # Note: same as created_at if never updated
@@ -419,8 +434,8 @@ class AnkiManager:
             if tag.get("name")
         ]
         tag_list.append("readwise")
-        # Remove any empty or invalid tags
-        tag_list = [t for t in tag_list if t and t.strip()]
+        # Remove any empty or invalid tags and deduplicate
+        tag_list = list(set(t for t in tag_list if t and t.strip()))
 
         # Check if note already exists using highlight ID
         # We store highlight_id in the HighlightID field to track duplicates
@@ -441,9 +456,6 @@ class AnkiManager:
             # Check if any field needs updating
             needs_update = False
             update_fields = {}
-
-            # Convert markdown to HTML for comparison
-            text_html = markdown.markdown(text, extensions=["extra", "nl2br"])
 
             # Check each field - update if it exists in the model and value changed
             if (
@@ -476,12 +488,6 @@ class AnkiManager:
             ):
                 update_fields["Category"] = str(category)
                 needs_update = True
-            # Convert markdown to HTML for notes
-            note_html = (
-                markdown.markdown(note_text, extensions=["extra", "nl2br"])
-                if note_text
-                else ""
-            )
             if (
                 "Note" in existing_fields
                 and existing_fields["Note"]["value"] != note_html
@@ -710,6 +716,7 @@ class AnkiManager:
         readwise_highlight_ids: set,
         show_details: bool = False,
         delete: bool = False,
+        force: bool = False,
     ):
         """Detect and optionally show or delete orphaned notes.
 
@@ -719,6 +726,7 @@ class AnkiManager:
             readwise_highlight_ids: Set of all highlight IDs from Readwise export
             show_details: If True, show details about each orphaned note
             delete: If True, delete orphaned notes (implies show_details=True)
+            force: If True, skip confirmation prompt before deleting
         """
         # Get all notes from the deck
         all_notes = self._invoke("findNotes", query=f'deck:"{self.deck_name}"')
@@ -774,6 +782,19 @@ class AnkiManager:
 
         # Delete if requested
         if delete:
+            # Confirm deletion unless force flag is set
+            if not force:
+                try:
+                    response = input(
+                        f"\nDelete {orphaned_count} orphaned note{'s' if orphaned_count != 1 else ''}? [y/N] "
+                    )
+                    if response.lower() not in ("y", "yes"):
+                        logger.info("Deletion cancelled")
+                        return
+                except (EOFError, KeyboardInterrupt):
+                    logger.info("\nDeletion cancelled")
+                    return
+
             note_ids = [note["noteId"] for note in orphaned_notes]
             self.delete_notes(note_ids)
             logger.info(
@@ -799,3 +820,5 @@ class AnkiManager:
             logger.info(f"Suspended books: {self.stats['books_suspended']}")
         if self.stats.get("notes_orphaned", 0) > 0:
             logger.info(f"Orphaned notes: {self.stats['notes_orphaned']}")
+        if self.stats.get("notes_deleted", 0) > 0:
+            logger.info(f"Deleted notes: {self.stats['notes_deleted']}")

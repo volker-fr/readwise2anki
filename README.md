@@ -45,9 +45,6 @@ readwise2anki sync --use-cache
 
 # Enable verbose output
 readwise2anki sync --verbose
-
-# Flags can also be placed before the subcommand
-readwise2anki --verbose --use-cache sync
 ```
 
 ### Manage Orphaned Notes
