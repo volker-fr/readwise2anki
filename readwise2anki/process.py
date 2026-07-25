@@ -31,30 +31,27 @@ def process_highlight(highlight, book, anki_manager):
         return
 
     if book.get("category") == "books":
-        asin = book.get("asin")
-        if not asin:
-            logger.warning(f"Book highlight missing ASIN: {book}")
-            return
-
         if highlight.get("location_type", "") != "location":
-            logger.warning(
-                f"Book highlight location_type isn't 'location': {highlight}"
+            logger.debug(
+                f"Book highlight location_type isn't 'location': {highlight.get('id')}"
             )
 
         location = highlight.get("location", "")
         if not isinstance(location, int):
-            logger.warning(f"Book highlight location isn't integer: {highlight}")
+            logger.debug(f"Book highlight location isn't integer: {highlight.get('id')}")
 
         if highlight.get("url"):
-            logger.warning(
-                f"Book highlight has 'url' set. It will be overwritten: {highlight}"
+            logger.debug(
+                f"Book highlight has 'url' set. It will be overwritten: {highlight.get('id')}"
             )
 
-        highlight["url"] = (
-            # f"http://read.amazon.com/?&asin={asin}&location={location}&ref=sr_rn_kfw"
-            # doesn't seem to work well with book and location on iOS
-            f"kindle://book?action=open&asin={asin}&location={location}"
-        )
+        asin = book.get("asin")
+        if asin:
+            highlight["url"] = (
+                # f"http://read.amazon.com/?&asin={asin}&location={location}&ref=sr_rn_kfw"
+                # doesn't seem to work well with book and location on iOS
+                f"kindle://book?action=open&asin={asin}&location={location}"
+            )
 
     anki_manager.add_note(highlight, book)
 

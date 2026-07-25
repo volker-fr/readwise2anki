@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-07-24
+
+### Changed
+
+- Code quality improvements: linting fixes and formatting cleanup
+- Refactored code in `anki.py`, `cache.py`, and `cli.py`
+- Book highlights missing ASIN are no longer skipped, URL is simply omitted
+- Reduced log noise: book highlight warnings downgraded to debug level
+
+### Added
+
+- Test suite with pytest (`tests/test_cli.py`)
+- `pytest` dev dependency
+
 ## [0.1.6] - 2026-01-31
 
 ### Added
